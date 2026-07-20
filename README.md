@@ -1,10 +1,10 @@
-# flutter_recyclerview_edit_delete_swipe
+# flutter_recyclerview_edit_delete_archive_swipe
 
 [![Flutter Version](https://img.shields.io/badge/Flutter-%3E%3D1.17.0-blue.svg)](https://flutter.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Web%20%7C%20Desktop-orange.svg)](#)
 
-**flutter_recyclerview_edit_delete_swipe** is a premium, highly customizable, and interactive swipe-action list tile package for Flutter. Inspired by modern RecyclerView gesture patterns, it enables intuitive swipe-to-edit, swipe-to-delete, and swipe-to-archive gestures with smooth animations, custom icons, labels, confirmation dialogs, and border radius styling.
+**flutter_recyclerview_edit_delete_archive_swipe** is a premium, highly customizable, and interactive swipe-action list tile package for Flutter. Inspired by modern RecyclerView gesture patterns, it enables intuitive swipe-to-edit, swipe-to-delete, and swipe-to-archive gestures with smooth animations, custom icons, labels, confirmation dialogs, and border radius styling.
 
 ---
 
