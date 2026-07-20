@@ -129,4 +129,80 @@ void main() {
     expect(confirmDeleteCalled, isTrue);
     expect(deleteCalled, isTrue); // Should be delete because confirm returned true
   });
+
+  testWidgets('triggers onArchive callback when swiped', (WidgetTester tester) async {
+    bool archiveCalled = false;
+
+    await tester.pumpWidget(
+      buildTestableWidget(
+        SwipeActionTile(
+          key: const Key('item_archive_1'),
+          onArchive: () {
+            archiveCalled = true;
+          },
+          child: const SizedBox(
+            height: 100,
+            width: double.infinity,
+            child: Text('Swipe Me To Archive'),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Swipe Me To Archive'), findsOneWidget);
+
+    // Swipe right to archive
+    await tester.drag(find.text('Swipe Me To Archive'), const Offset(500, 0));
+    await tester.pumpAndSettle();
+
+    expect(archiveCalled, isTrue);
+  });
+
+  testWidgets('respects confirmArchive callback when swiped', (WidgetTester tester) async {
+    bool archiveCalled = false;
+    bool confirmArchiveCalled = false;
+    bool shouldArchive = false;
+
+    await tester.pumpWidget(
+      StatefulBuilder(
+        builder: (context, setState) {
+          return buildTestableWidget(
+            SwipeActionTile(
+              key: const Key('item_archive_2'),
+              confirmArchive: () {
+                confirmArchiveCalled = true;
+                return shouldArchive;
+              },
+              onArchive: () {
+                archiveCalled = true;
+              },
+              child: const SizedBox(
+                height: 100,
+                width: double.infinity,
+                child: Text('Swipe Me Confirm Archive'),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    // Swipe with confirm returning false
+    await tester.drag(find.text('Swipe Me Confirm Archive'), const Offset(500, 0));
+    await tester.pumpAndSettle();
+
+    expect(confirmArchiveCalled, isTrue);
+    expect(archiveCalled, isFalse);
+
+    // Reset indicator and change confirm to return true
+    confirmArchiveCalled = false;
+    shouldArchive = true;
+
+    // Swipe with confirm returning true
+    await tester.drag(find.text('Swipe Me Confirm Archive'), const Offset(500, 0));
+    await tester.pumpAndSettle();
+
+    expect(confirmArchiveCalled, isTrue);
+    expect(archiveCalled, isTrue);
+  });
 }

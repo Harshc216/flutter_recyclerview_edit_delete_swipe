@@ -60,7 +60,9 @@ class TaskListScreen extends StatefulWidget {
 }
 
 class _TaskListScreenState extends State<TaskListScreen> {
-  final List<TaskItem> _tasks = [
+  int _selectedTabIndex = 0; // 0: Active Tasks, 1: Archived Tasks
+
+  final List<TaskItem> _activeTasks = [
     TaskItem(
       id: '1',
       title: 'Design app landing page',
@@ -97,6 +99,9 @@ class _TaskListScreenState extends State<TaskListScreen> {
       tag: 'Personal',
       timeEstimate: 'Next Week',
     ),
+  ];
+
+  final List<TaskItem> _archivedTasks = [
     TaskItem(
       id: '5',
       title: 'Prepare presentation slides',
@@ -104,7 +109,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
       accentColor: const Color(0xFFF59E0B), // Amber
       icon: Icons.slideshow_rounded,
       tag: 'Marketing',
-      timeEstimate: 'July 20',
+      timeEstimate: 'Archived',
     ),
   ];
 
@@ -411,7 +416,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
                             final title = titleController.text.trim();
                             final subtitle = subtitleController.text.trim();
                             setState(() {
-                              _tasks.add(TaskItem(
+                              _activeTasks.add(TaskItem(
                                 id: DateTime.now().millisecondsSinceEpoch.toString(),
                                 title: title,
                                 subtitle: subtitle,
@@ -589,6 +594,66 @@ class _TaskListScreenState extends State<TaskListScreen> {
     );
   }
 
+  void _archiveTask(TaskItem task) {
+    setState(() {
+      _activeTasks.remove(task);
+      if (!_archivedTasks.contains(task)) {
+        _archivedTasks.insert(0, task);
+      }
+    });
+
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Archived "${task.title}"'),
+        backgroundColor: const Color(0xFFF59E0B),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        action: SnackBarAction(
+          label: 'UNDO',
+          textColor: Colors.white,
+          onPressed: () {
+            setState(() {
+              _archivedTasks.remove(task);
+              _activeTasks.add(task);
+            });
+          },
+        ),
+      ),
+    );
+  }
+
+  void _unarchiveTask(TaskItem task) {
+    setState(() {
+      _archivedTasks.remove(task);
+      _activeTasks.add(task);
+    });
+
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Restored "${task.title}" to active list'),
+        backgroundColor: const Color(0xFF10B981),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        action: SnackBarAction(
+          label: 'UNDO',
+          textColor: Colors.white,
+          onPressed: () {
+            setState(() {
+              _activeTasks.remove(task);
+              _archivedTasks.insert(0, task);
+            });
+          },
+        ),
+      ),
+    );
+  }
+
   Future<bool> _confirmDeleteTask(TaskItem task) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -612,7 +677,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
             ],
           ),
           content: Text(
-            'Are you sure you want to delete "${task.title}"?\nThis cannot be reverted.',
+            'Are you sure you want to delete "${task.title}"?\nThis action cannot be reverted.',
             style: const TextStyle(color: Color(0xFF475569), fontSize: 15),
           ),
           actions: [
@@ -642,9 +707,9 @@ class _TaskListScreenState extends State<TaskListScreen> {
     return confirm ?? false;
   }
 
-  void _deleteTask(TaskItem task, int index) {
+  void _deleteActiveTask(TaskItem task) {
     setState(() {
-      _tasks.removeAt(index);
+      _activeTasks.remove(task);
     });
 
     ScaffoldMessenger.of(context).clearSnackBars();
@@ -661,7 +726,34 @@ class _TaskListScreenState extends State<TaskListScreen> {
           textColor: const Color(0xFFF43F5E),
           onPressed: () {
             setState(() {
-              _tasks.insert(index, task);
+              _activeTasks.add(task);
+            });
+          },
+        ),
+      ),
+    );
+  }
+
+  void _deleteArchivedTask(TaskItem task) {
+    setState(() {
+      _archivedTasks.remove(task);
+    });
+
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Permanently deleted "${task.title}"'),
+        backgroundColor: const Color(0xFF0F172A),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        action: SnackBarAction(
+          label: 'UNDO',
+          textColor: const Color(0xFFF43F5E),
+          onPressed: () {
+            setState(() {
+              _archivedTasks.insert(0, task);
             });
           },
         ),
@@ -671,14 +763,14 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentTasks = _selectedTabIndex == 0 ? _activeTasks : _archivedTasks;
+
     return Scaffold(
       appBar: AppBar(
         title: const Row(
           children: [
-            Icon(Icons.swipe_rounded, color: Color(0xFF6366F1), size: 28),
-            SizedBox(width: 10),
             Text(
-              'Swipeable Tasks',
+              'RecyclerView Swipe Actions',
               style: TextStyle(
                 fontWeight: FontWeight.w900,
                 color: Color(0xFF0F172A),
@@ -707,43 +799,157 @@ class _TaskListScreenState extends State<TaskListScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Workspace Overview',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF0F172A),
-                      letterSpacing: -0.8,
+                  // Tab selector for Active vs Archived
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.all(4),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedTabIndex = 0;
+                              });
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              decoration: BoxDecoration(
+                                color: _selectedTabIndex == 0 ? Colors.white : Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: _selectedTabIndex == 0
+                                    ? [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: 0.05),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 2),
+                                        )
+                                      ]
+                                    : null,
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.list_alt_rounded,
+                                    size: 18,
+                                    color: _selectedTabIndex == 0
+                                        ? const Color(0xFF6366F1)
+                                        : const Color(0xFF64748B),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Active (${_activeTasks.length})',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      color: _selectedTabIndex == 0
+                                          ? const Color(0xFF0F172A)
+                                          : const Color(0xFF64748B),
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedTabIndex = 1;
+                              });
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              decoration: BoxDecoration(
+                                color: _selectedTabIndex == 1 ? Colors.white : Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: _selectedTabIndex == 1
+                                    ? [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: 0.05),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 2),
+                                        )
+                                      ]
+                                    : null,
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.archive_outlined,
+                                    size: 18,
+                                    color: _selectedTabIndex == 1
+                                        ? const Color(0xFFF59E0B)
+                                        : const Color(0xFF64748B),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Archived (${_archivedTasks.length})',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      color: _selectedTabIndex == 1
+                                          ? const Color(0xFF0F172A)
+                                          : const Color(0xFF64748B),
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 16),
                   Row(
                     children: [
                       const Icon(Icons.info_outline_rounded, color: Color(0xFF64748B), size: 15),
                       const SizedBox(width: 4),
-                      const Text(
-                        'Swipe item right to Edit • Swipe left to Delete',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF64748B),
-                          fontWeight: FontWeight.w500,
+                      Expanded(
+                        child: Text(
+                          _selectedTabIndex == 0
+                              ? 'Swipe right to Archive • Swipe left to Delete • Tap to Edit'
+                              : 'Swipe right to Restore • Swipe left to Delete permanently',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                      gradient: _selectedTabIndex == 0
+                          ? const LinearGradient(
+                              colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : const LinearGradient(
+                              colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+                          color: (_selectedTabIndex == 0
+                                  ? const Color(0xFF6366F1)
+                                  : const Color(0xFFF59E0B))
+                              .withValues(alpha: 0.3),
                           blurRadius: 12,
                           offset: const Offset(0, 6),
                         )
@@ -756,7 +962,9 @@ class _TaskListScreenState extends State<TaskListScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '${_tasks.length} Active Tasks',
+                              _selectedTabIndex == 0
+                                  ? '${_activeTasks.length} Active Tasks'
+                                  : '${_archivedTasks.length} Archived Tasks',
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 18,
@@ -764,9 +972,11 @@ class _TaskListScreenState extends State<TaskListScreen> {
                               ),
                             ),
                             const SizedBox(height: 2),
-                            const Text(
-                              'Keep swiping to manage details',
-                              style: TextStyle(
+                            Text(
+                              _selectedTabIndex == 0
+                                  ? 'Swipe right to move items to archive'
+                                  : 'View, restore, or delete archived items',
+                              style: const TextStyle(
                                 color: Colors.white70,
                                 fontSize: 12,
                               ),
@@ -779,10 +989,12 @@ class _TaskListScreenState extends State<TaskListScreen> {
                             color: Colors.white.withValues(alpha: 0.2),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
-                            Icons.check_circle_rounded,
+                          child: Icon(
+                            _selectedTabIndex == 0
+                                ? Icons.task_alt_rounded
+                                : Icons.archive_rounded,
                             color: Colors.white,
-                            size: 26,
+                            size: 24,
                           ),
                         )
                       ],
@@ -792,7 +1004,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
               ),
             ),
           ),
-          _tasks.isEmpty
+          currentTasks.isEmpty
               ? SliverFillRemaining(
                   hasScrollBody: false,
                   child: Center(
@@ -800,23 +1012,29 @@ class _TaskListScreenState extends State<TaskListScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          Icons.done_all_rounded,
-                          size: 80,
+                          _selectedTabIndex == 0
+                              ? Icons.done_all_rounded
+                              : Icons.archive_outlined,
+                          size: 72,
                           color: const Color(0xFF94A3B8).withValues(alpha: 0.4),
                         ),
                         const SizedBox(height: 16),
-                        const Text(
-                          'No tasks remaining!',
-                          style: TextStyle(
+                        Text(
+                          _selectedTabIndex == 0
+                              ? 'No active tasks!'
+                              : 'No archived tasks',
+                          style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
                             color: Color(0xFF475569),
                           ),
                         ),
                         const SizedBox(height: 6),
-                        const Text(
-                          'Create a task below to start tracking.',
-                          style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+                        Text(
+                          _selectedTabIndex == 0
+                              ? 'Create a task below to start tracking.'
+                              : 'Archived items will appear here.',
+                          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
                         ),
                       ],
                     ),
@@ -827,179 +1045,213 @@ class _TaskListScreenState extends State<TaskListScreen> {
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
-                        final task = _tasks[index];
+                        final task = currentTasks[index];
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 14.0),
-                          child: SwipeActionTile(
-                            key: Key(task.id),
-                            borderRadius: BorderRadius.circular(20),
-                            editColor: const Color(0xFF3B82F6),
-                            deleteColor: const Color(0xFFF43F5E),
-                            editIcon: Icons.edit_rounded,
-                            deleteIcon: Icons.delete_outline_rounded,
-                            editLabel: 'Edit',
-                            deleteLabel: 'Delete',
-                            onEdit: () => _editTask(task),
-                            confirmDelete: () => _confirmDeleteTask(task),
-                            onDelete: () => _deleteTask(task, index),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: const Color(0xFFEDF2F7),
-                                  width: 1.5,
+                          child: _selectedTabIndex == 0
+                              ? SwipeActionTile(
+                                  key: ValueKey('active_${task.id}'),
+                                  borderRadius: BorderRadius.circular(20),
+                                  archiveColor: const Color(0xFFF59E0B),
+                                  deleteColor: const Color(0xFFF43F5E),
+                                  archiveIcon: Icons.archive_rounded,
+                                  deleteIcon: Icons.delete_outline_rounded,
+                                  archiveLabel: 'Archive',
+                                  deleteLabel: 'Delete',
+                                  archiveDirection: DismissDirection.startToEnd,
+                                  onEdit: () => _editTask(task),
+                                  onArchive: () => _archiveTask(task),
+                                  confirmDelete: () => _confirmDeleteTask(task),
+                                  onDelete: () => _deleteActiveTask(task),
+                                  child: _buildTaskCard(task),
+                                )
+                              : SwipeActionTile(
+                                  key: ValueKey('archived_${task.id}'),
+                                  borderRadius: BorderRadius.circular(20),
+                                  archiveColor: const Color(0xFF10B981),
+                                  deleteColor: const Color(0xFFF43F5E),
+                                  archiveIcon: Icons.unarchive_rounded,
+                                  deleteIcon: Icons.delete_forever_rounded,
+                                  archiveLabel: 'Restore',
+                                  deleteLabel: 'Delete',
+                                  archiveDirection: DismissDirection.startToEnd,
+                                  onArchive: () => _unarchiveTask(task),
+                                  confirmDelete: () => _confirmDeleteTask(task),
+                                  onDelete: () => _deleteArchivedTask(task),
+                                  child: _buildTaskCard(task, isArchived: true),
                                 ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.02),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  )
-                                ],
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(20),
-                                child: IntrinsicHeight(
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                                    children: [
-                                      Container(
-                                        width: 5,
-                                        color: task.accentColor, // Accent color edge
-                                      ),
-                                      Expanded(
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(16),
-                                          child: Row(
-                                            children: [
-                                              Container(
-                                                padding: const EdgeInsets.all(10),
-                                                decoration: BoxDecoration(
-                                                  color: task.accentColor.withValues(alpha: 0.1),
-                                                  borderRadius: BorderRadius.circular(14),
-                                                ),
-                                                child: Icon(
-                                                  task.icon,
-                                                  color: task.accentColor,
-                                                  size: 22,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 14),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  mainAxisAlignment: MainAxisAlignment.center,
-                                                  children: [
-                                                    Text(
-                                                      task.title,
-                                                      style: const TextStyle(
-                                                        fontSize: 16,
-                                                        fontWeight: FontWeight.w800,
-                                                        color: Color(0xFF0F172A),
-                                                        letterSpacing: -0.3,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(height: 4),
-                                                    Text(
-                                                      task.subtitle,
-                                                      style: const TextStyle(
-                                                        fontSize: 13,
-                                                        color: Color(0xFF64748B),
-                                                        height: 1.3,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(height: 8),
-                                                    Row(
-                                                      children: [
-                                                        Container(
-                                                          padding: const EdgeInsets.symmetric(
-                                                            horizontal: 8,
-                                                            vertical: 4,
-                                                          ),
-                                                          decoration: BoxDecoration(
-                                                            color: task.accentColor.withValues(alpha: 0.1),
-                                                            borderRadius: BorderRadius.circular(8),
-                                                          ),
-                                                          child: Text(
-                                                            task.tag,
-                                                            style: TextStyle(
-                                                              fontSize: 10,
-                                                              fontWeight: FontWeight.w800,
-                                                              color: task.accentColor,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                        const SizedBox(width: 8),
-                                                        Container(
-                                                          padding: const EdgeInsets.symmetric(
-                                                            horizontal: 8,
-                                                            vertical: 4,
-                                                          ),
-                                                          decoration: BoxDecoration(
-                                                            color: const Color(0xFFF1F5F9),
-                                                            borderRadius: BorderRadius.circular(8),
-                                                          ),
-                                                          child: Row(
-                                                            mainAxisSize: MainAxisSize.min,
-                                                            children: [
-                                                              const Icon(
-                                                                Icons.access_time_rounded,
-                                                                size: 11,
-                                                                color: Color(0xFF64748B),
-                                                               ),
-                                                              const SizedBox(width: 4),
-                                                              Text(
-                                                                task.timeEstimate,
-                                                                style: const TextStyle(
-                                                                  fontSize: 10,
-                                                                  fontWeight: FontWeight.w700,
-                                                                  color: Color(0xFF64748B),
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              const Icon(
-                                                Icons.chevron_left_rounded,
-                                                color: Color(0xFF94A3B8),
-                                                size: 20,
-                                              )
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
                         );
                       },
-                      childCount: _tasks.length,
+                      childCount: currentTasks.length,
                     ),
                   ),
                 ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addTask,
-        backgroundColor: const Color(0xFF6366F1),
-        foregroundColor: Colors.white,
-        elevation: 3,
-        icon: const Icon(Icons.add_rounded, size: 24),
-        label: const Text(
-          'New Task',
-          style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.2),
+      floatingActionButton: _selectedTabIndex == 0
+          ? FloatingActionButton(
+              onPressed: _addTask,
+              backgroundColor: const Color(0xFF6366F1),
+              foregroundColor: Colors.white,
+              elevation: 3,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(Icons.add_rounded, size: 26),
+            )
+          : null,
+    );
+  }
+
+  Widget _buildTaskCard(TaskItem task, {bool isArchived = false}) {
+    return InkWell(
+      onTap: isArchived ? null : () => _editTask(task),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: const Color(0xFFEDF2F7),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            )
+          ],
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  width: 5,
+                  color: isArchived ? const Color(0xFF94A3B8) : task.accentColor,
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: (isArchived ? const Color(0xFF64748B) : task.accentColor)
+                                .withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(
+                            task.icon,
+                            color: isArchived ? const Color(0xFF64748B) : task.accentColor,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                task.title,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: isArchived
+                                      ? const Color(0xFF64748B)
+                                      : const Color(0xFF0F172A),
+                                  letterSpacing: -0.3,
+                                  decoration: isArchived ? TextDecoration.lineThrough : null,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                task.subtitle,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF64748B),
+                                  height: 1.3,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: (isArchived ? const Color(0xFF64748B) : task.accentColor)
+                                          .withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      task.tag,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        color: isArchived
+                                            ? const Color(0xFF64748B)
+                                            : task.accentColor,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          isArchived
+                                              ? Icons.archive_outlined
+                                              : Icons.access_time_rounded,
+                                          size: 11,
+                                          color: const Color(0xFF64748B),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          isArchived ? 'Archived' : task.timeEstimate,
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF64748B),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (!isArchived)
+                          const Icon(
+                            Icons.edit_outlined,
+                            color: Color(0xFF94A3B8),
+                            size: 18,
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
